@@ -1,6 +1,8 @@
 import logging
 import subprocess
 import sys
+from pathlib import Path
+from typing import Union
 
 logger = logging.getLogger("logger")
 
@@ -9,7 +11,13 @@ CHAI_VERSION = "0.6.1"
 CHAI_VERSION = "0.6.1"
 
 
-def check_chai1():
+def check_chai1(sif_path: Union[str, Path, None] = None):
+    if sif_path:
+        sif = Path(sif_path)
+        if not sif.exists():
+            raise FileNotFoundError(f"Chai-1 SIF not found: {sif}")
+        logger.info("Using Chai-1 container: %s", sif)
+        return
     try:
         import chai_lab as _  # noqa F40
 

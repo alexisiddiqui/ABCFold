@@ -1,0 +1,44 @@
+Bootstrap: docker
+From: nvidia/cuda:12.4.1-devel-ubuntu22.04
+
+%post
+    # Install system packages
+    DEBIAN_FRONTEND=noninteractive \
+    apt-get update --quiet \
+    && apt-get install --yes --quiet --allow-change-held-packages \
+        python3.10 python3-pip python3.10-venv python3.10-dev \
+        git wget gcc g++ make zlib1g-dev \
+        libnccl2 libnccl-dev
+
+    # Create Python virtual environment
+    python3 -m venv /boltz_venv
+    /boltz_venv/bin/pip3 install --no-cache-dir --upgrade pip setuptools wheel
+
+    # Install Boltz first (it will pull in torch dependencies)
+    /boltz_venv/bin/pip3 install --no-cache-dir \
+        boltz==2.0.3 \
+        cuequivariance_torch \
+        cuequivariance_ops_torch-cu12
+
+    # Now install/upgrade torchvision and torchaudio to match the torch version
+    /boltz_venv/bin/pip3 install --no-cache-dir --upgrade \
+        torchvision torchaudio \
+        --index-url https://download.pytorch.org/whl/cu124
+
+    # Cleanup
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+%environment
+    export PATH="/boltz_venv/bin:$PATH"
+    export XLA_FLAGS="--xla_gpu_enable_triton_gemm=true"
+    export XLA_PYTHON_CLIENT_PREALLOCATE=true
+    export XLA_CLIENT_MEM_FRACTION=0.85
+    export CUDA_DEVICE_ORDER=PCI_BUS_ID
+
+%runscript
+    exec /boltz_venv/bin/boltz "$@"
+
+%labels
+    Author Boltz_Team
+    Version 2.0.3_Ampere
+    Architecture x86_64

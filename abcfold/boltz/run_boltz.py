@@ -1,4 +1,5 @@
 import logging
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,7 @@ def run_boltz(
     test: bool = False,
     number_of_models: int = 5,
     num_recycles: int = 10,
+    sif_path: Union[str, Path, None] = None,
 ) -> bool:
     """
     Run Boltz using the input JSON file
@@ -42,7 +44,7 @@ def run_boltz(
     output_dir = Path(output_dir)
 
     logger.debug("Checking if boltz is installed")
-    check_boltz()
+    check_boltz(sif_path=sif_path)
 
     with tempfile.TemporaryDirectory() as temp_dir:
         working_dir = Path(temp_dir)
@@ -65,9 +67,10 @@ def run_boltz(
                     number_of_models,
                     num_recycles,
                     seed=seed,
+                    sif_path=sif_path,
                 )
                 if not test
-                else generate_boltz_test_command()
+                else generate_boltz_test_command(sif_path=sif_path)
             )
 
             with subprocess.Popen(
@@ -103,25 +106,65 @@ def run_boltz(
         return True
 
 
+def _resolve_container_runtime() -> str:
+    runtime = shutil.which("apptainer") or shutil.which("singularity")
+    if runtime:
+        return runtime
+    raise FileNotFoundError("Apptainer/Singularity executable not found on PATH.")
+
+
 def generate_boltz_command(
     input_yaml: Union[str, Path],
     output_dir: Union[str, Path],
     number_of_models: int = 5,
     num_recycles: int = 10,
     seed: int = 42,
+    sif_path: Union[str, Path, None] = None,
 ) -> list:
-    """
-    Generate the Boltz command
+    input_yaml = Path(input_yaml).resolve()
+    output_dir = Path(output_dir).resolve()
 
-    Args:
-        input_yaml (Union[str, Path]): Path to the input YAML file
-        output_dir (Union[str, Path]): Path to the output directory
-        number_of_models (int): Number of models to generate
-        seed (int): Seed for the random number generator
+    if sif_path:
+        sif = Path(sif_path).resolve()
+        runtime = _resolve_container_runtime()
+        bind_map: dict[Path, str] = {}
 
-    Returns:
-        list: The Boltz command
-    """
+        def ensure_bind(path: Path, preferred: str) -> str:
+            path = path.resolve()
+            if path in bind_map:
+                return bind_map[path]
+            dest = preferred
+            counter = 1
+            while dest in bind_map.values():
+                counter += 1
+                dest = f"{preferred}_{counter}"
+            bind_map[path] = dest
+            return dest
+
+        input_mount = ensure_bind(input_yaml.parent, "/input")
+        output_mount = ensure_bind(output_dir, "/output")
+
+        cmd = [runtime, "exec", "--nv"]
+        for src, dst in bind_map.items():
+            cmd += ["--bind", f"{str(src)}:{dst}"]
+        cmd += [
+            str(sif),
+            "boltz",
+            "predict",
+            f"{input_mount}/{input_yaml.name}",
+            "--out_dir",
+            output_mount,
+            "--override",
+            "--write_full_pae",
+            "--write_full_pde",
+            "--diffusion_samples",
+            str(number_of_models),
+            "--recycling_steps",
+            str(num_recycles),
+            "--seed",
+            str(seed),
+        ]
+        return cmd
     return [
         "boltz",
         "predict",
@@ -140,17 +183,20 @@ def generate_boltz_command(
     ]
 
 
-def generate_boltz_test_command() -> list:
-    """
-    Generate the test command for Boltz
-
-    Args:
-        None
-
-    Returns:
-        list: The Boltz test command
-    """
-
+def generate_boltz_test_command(
+    sif_path: Union[str, Path, None] = None,
+) -> list:
+    if sif_path:
+        runtime = _resolve_container_runtime()
+        return [
+            runtime,
+            "exec",
+            "--nv",
+            str(Path(sif_path).resolve()),
+            "boltz",
+            "predict",
+            "--help",
+        ]
     return [
         "boltz",
         "predict",

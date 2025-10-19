@@ -65,7 +65,7 @@ def generate_test_command(interactive: bool = True,
     """
     if sif_path:
         return f"""
-    singularity exec \
+    apptainer exec \
     {sif_path} \
     python /app/alphafold/run_alphafold.py \
     --help
@@ -85,7 +85,7 @@ def generate_version_command(sif_path: Union[str, Path, None] = None) -> str:
     """
     if sif_path:
         return f"""
-    singularity exec \
+    apptainer exec \
     {sif_path} \
     python -c \
     'from alphafold3.version import __version__ ; print(__version__)'

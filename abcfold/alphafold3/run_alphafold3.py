@@ -98,7 +98,7 @@ def generate_af3_cmd(
 
     if sif_path is not None:
         return f"""
-        singularity exec \
+        apptainer exec \
         --nv \
         --bind {input_json.parent.resolve()}:/root/af_input \
         --bind {output_dir.resolve()}:/root/af_output \

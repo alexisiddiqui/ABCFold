@@ -1,13 +1,21 @@
 import logging
 import subprocess
 import sys
+from pathlib import Path
+from typing import Union
 
 logger = logging.getLogger("logger")
 
 BOLTZ_VERSION = "2.2.0"
 
 
-def check_boltz():
+def check_boltz(sif_path: Union[str, Path, None] = None):
+    if sif_path:
+        sif = Path(sif_path)
+        if not sif.exists():
+            raise FileNotFoundError(f"Boltz SIF not found: {sif}")
+        logger.info("Using Boltz container: %s", sif)
+        return
     try:
         import boltz as _  # noqa F401
 

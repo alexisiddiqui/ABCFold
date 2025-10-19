@@ -1,5 +1,7 @@
 # ABCFold
 
+abcfold /home/alexi/Documents/AF3-Pipeline/test_jsons/VAC063_R5.001_data.json   ./output_VAC063_R5.001   -abc  --sif_path /home/alexi/Documents/AF3_weights/alphafold3.sif  --model_params /home/alexi/Documents/AF3_weights --override  --no_visuals
+
 ![Build Status](https://github.com/rigdenlab/ABCFold/actions/workflows/python-package.yml/badge.svg)
 ![Coverage](https://raw.githubusercontent.com/rigdenlab/ABCFold/refs/heads/main/.blob/coverage.svg)
 
@@ -124,8 +126,26 @@ However, there you may wish to use the following flags to add run time options s
 - `--target_id`: [conditionally required] The ID of the sequence the custom template relates to, only required if modelling a complex. If providing a list of custom templates, you can provide a single target ID if they all relate to the same target. Otherwise, you should provide a list of target IDs corresponding to the list of custom templates.
 
 #### Visualisation arguments
-- `--no_server`: [optional] Flag to not run the server for the output page (see below) but the pages are created , useful for running on a cluster.
-- `--no_visuals`: [optional] Flag to not generate any output pages or PAE plots and only output the models.
+- `--no_server`: [optional] Do not run the local web server or automatically open the results page after the run. Use this when running on a cluster or when you only want the files generated without serving them.
+- `--no_visuals`: [optional] Do not generate any output pages or PAE plots and only output the models.
+
+Notes:
+- If you use `--no_server` but do not use `--no_visuals`, the HTML pages and PAE plots will still be created in `<output_dir>` but will not be served or opened automatically.
+- To view generated pages later, run the server from the output directory:
+```bash
+cd <output_dir>
+python open_output.py
+```
+
+Examples:
+- Generate pages but don't start the server / don't auto-open:
+```bash
+abcfold <input_json> <output_dir> -abc --no_server
+```
+- Skip visuals entirely (only models written):
+```bash
+abcfold <input_json> <output_dir> -abc --no_visuals
+```
 
 #### Custom template usage
 
@@ -326,3 +346,32 @@ Additionally, Boltz currently lacks the ability to create linked-ligands and the
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request.
+
+### Examples
+
+#### Run with MMseqs2 and cached parameters
+```bash
+abcfold input.json output_dir -abc --mmseqs2 --model_params /path/to/af3_params
+```
+
+#### Run AlphaFold3 via Singularity/Apptainer
+```bash
+abcfold input.json output_dir -a --sif_path /path/to/alphafold3.sif --model_params /path/to/af3_params
+```
+
+#### Run Boltz and Chai-1 inside containers
+```bash
+abcfold input.json output_dir -bc --boltz_sif_path /path/to/boltz.sif --chai_sif_path /path/to/chai.sif --save_input
+```
+
+#### Headless execution without visuals or server
+```bash
+abcfold input.json output_dir -abc --no_visuals
+```
+
+
+
+abcfold /home/alexi/Documents/AF3-Pipeline/test_jsons/VAC063_R5.001_data.json   ./output_VAC063_R5.001   -abc  --sif_path /home/alexi/Documents/AF3_weights/alphafold3.sif  --model_params /home/alexi/Documents/AF3_weights --override  --no_visuals --boltz_sif_path /home/alexi/Documents/ABCFold/abcfold/docker/Boltz/boltz2_ampere.sif --chai_sif_path /home/alexi/Documents/ABCFold/abcfold/docker/Chai/chai2_ampere.sif
+
+
+abcfold /home/alexi/Documents/AF3-Pipeline/test_jsons/VAC063_R5.001_data.json   ./output_VAC063_R5.001   -b  --sif_path /home/alexi/Documents/AF3_weights/alphafold3.sif  --model_params /home/alexi/Documents/AF3_weights --override  --no_visuals --boltz_sif_path /home/alexi/Documents/ABCFold/abcfold/docker/Boltz/boltz2_ampere.sif --chai_sif_path /home/alexi/Documents/ABCFold/abcfold/docker/Chai/chai2_ampere.sif

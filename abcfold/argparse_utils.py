@@ -124,7 +124,11 @@ def boltz_argparse_util(parser):
             help="Save the input json file",
             default=False,
         )
-
+    parser.add_argument(
+        "--boltz_sif_path",
+        help="[optional] Path to Boltz Apptainer/Singularity .sif image",
+        default=None,
+    )
     return parser
 
 
@@ -134,6 +138,11 @@ def chai_argparse_util(parser):
         "--chai1",
         action="store_true",
         help="Run Chai-1",
+    )
+    parser.add_argument(
+        "--chai_sif_path",
+        help="[optional] Path to Chai-1 Apptainer/Singularity .sif image",
+        default=None,
     )
     return parser
 

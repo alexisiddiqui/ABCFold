@@ -17,3 +17,12 @@ build/
 # pip packages
 dist/
 *.egg-info/
+
+
+*.json
+
+output*
+
+*.ini
+
+*.sif

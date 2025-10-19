@@ -12,6 +12,13 @@ from abcfold.chai1.check_install import check_chai1
 logger = logging.getLogger("logger")
 
 
+def _resolve_container_runtime() -> str:
+    runtime = shutil.which("apptainer") or shutil.which("singularity")
+    if runtime:
+        return runtime
+    raise FileNotFoundError("Apptainer/Singularity executable not found on PATH.")
+
+
 def run_chai(
     input_json: Union[str, Path],
     output_dir: Union[str, Path],
@@ -21,6 +28,7 @@ def run_chai(
     num_recycles: int = 10,
     use_templates_server: bool = False,
     template_hits_path: Path | None = None,
+    sif_path: Path | str | None = None,
 ) -> bool:
     """
     Run Chai-1 using the input JSON file
@@ -34,7 +42,8 @@ def run_chai(
         number_of_models (int): Number of models to generate
         num_recycles (int): Number of trunk recycles
         use_templates_server (bool): If True, use templates from the server
-        template_hits_path (Path): Path to the template hits m8 file
+        template_hits_path (Path | None): Path to the template hits m8 file
+        sif_path (Path | str | None): Optional Apptainer/Singularity image
 
     Returns:
         Bool: True if the Chai-1 run was successful, False otherwise
@@ -44,7 +53,7 @@ def run_chai(
     output_dir = Path(output_dir)
 
     logger.debug("Checking if Chai-1 is installed")
-    check_chai1()
+    check_chai1(sif_path=sif_path)
 
     with tempfile.TemporaryDirectory() as temp_dir:
         working_dir = Path(temp_dir)
@@ -62,6 +71,8 @@ def run_chai(
 
         for seed in chai_fasta.seeds:
             chai_output_dir = output_dir / f"chai_output_seed-{seed}"
+            if sif_path:
+                chai_output_dir.mkdir(parents=True, exist_ok=True)
 
             logger.info(f"Running Chai-1 using seed {seed}")
             cmd = (
@@ -75,9 +86,10 @@ def run_chai(
                     seed=seed,
                     use_templates_server=use_templates_server,
                     template_hits_path=template_hits_path,
+                    sif_path=sif_path,
                 )
                 if not test
-                else generate_chai_test_command()
+                else generate_chai_test_command(sif_path=sif_path)
             )
 
             with subprocess.Popen(
@@ -115,43 +127,90 @@ def generate_chai_command(
     seed: int = 42,
     use_templates_server: bool = False,
     template_hits_path: Path | None = None,
+    sif_path: Path | str | None = None,
 ) -> list:
-    """
-    Generate the Chai-1 command
-
-    Args:
-        input_fasta (Union[str, Path]): Path to the input fasta file
-        msa_dir (Union[str, Path]): Path to the MSA directory
-        input_constraints (Union[str, Path]): Path to the input constraints file
-        output_dir (Union[str, Path]): Path to the output directory
-        number_of_models (int): Number of models to generate
-        num_recycles (int): Number of trunk recycles
-        seed (int): Seed for the random number generator
-        use_templates_server (bool): If True, use templates from the server
-        template_hits_path (Path): Path to the template hits m8 file
-
-    Returns:
-        list: The Chai-1 command
-
-    """
-
     chai_exe = Path(__file__).parent / "chai.py"
-    cmd = ["python", str(chai_exe), "fold", str(input_fasta)]
+    input_fasta = Path(input_fasta)
+    msa_dir = Path(msa_dir)
+    output_dir = Path(output_dir)
+    constraints_path = Path(input_constraints) if input_constraints else None
+    template_path = Path(template_hits_path) if template_hits_path else None
 
-    if Path(msa_dir).exists():
+    if sif_path:
+        sif = Path(sif_path).resolve()
+        runtime = _resolve_container_runtime()
+        bind_map: dict[Path, str] = {}
+
+        def ensure_bind(path: Path, preferred: str) -> str:
+            path = path.resolve()
+            if path in bind_map:
+                return bind_map[path]
+            dest = preferred
+            counter = 1
+            while dest in bind_map.values():
+                counter += 1
+                dest = f"{preferred}_{counter}"
+            bind_map[path] = dest
+            return dest
+
+        chai_mount = ensure_bind(chai_exe.parent, "/abcfold_chai")
+        input_mount = ensure_bind(input_fasta.parent, "/input")
+        output_mount = ensure_bind(output_dir, "/output")
+        msa_mount = ensure_bind(msa_dir, "/msa") if msa_dir.exists() else None
+        constraint_arg: str | None = None
+        if constraints_path is not None:
+            if constraints_path.exists():
+                constraint_mount = ensure_bind(constraints_path.parent, "/constraints")
+                constraint_arg = f"{constraint_mount}/{constraints_path.name}"
+        template_arg: str | None = None
+        if template_path is not None:
+            if template_path.exists():
+                template_mount = ensure_bind(template_path.parent, "/templates")
+                template_arg = f"{template_mount}/{template_path.name}"
+        cmd = [runtime, "exec", "--nv"]
+        for src, dst in bind_map.items():
+            cmd += ["--bind", f"{str(src)}:{dst}"]
+        cmd += [
+            str(sif),
+            "python",
+            f"{chai_mount}/chai.py",
+            "fold",
+            f"{input_mount}/{input_fasta.name}",
+        ]
+        if msa_mount:
+            cmd += ["--msa-directory", msa_mount]
+        if constraint_arg is not None:
+            cmd += ["--constraint-path", constraint_arg]
+        cmd += [
+            "--num-diffn-samples",
+            str(number_of_models),
+            "--num-trunk-recycles",
+            str(num_recycles),
+            "--seed",
+            str(seed),
+        ]
+        if use_templates_server:
+            cmd.append("--use-templates-server")
+        if template_arg is not None:
+            cmd += ["--template-hits-path", template_arg]
+        cmd.append(output_mount)
+        return cmd
+
+    cmd = ["python", str(chai_exe), "fold", str(input_fasta)]
+    if msa_dir.exists():
         cmd += ["--msa-directory", str(msa_dir)]
-    if Path(input_constraints).exists():
-        cmd += ["--constraint-path", str(input_constraints)]
+    if constraints_path and constraints_path.exists():
+        cmd += ["--constraint-path", str(constraints_path)]
 
     cmd += ["--num-diffn-samples", str(number_of_models)]
     cmd += ["--num-trunk-recycles", str(num_recycles)]
     cmd += ["--seed", str(seed)]
 
     assert not (
-        use_templates_server and template_hits_path
+        use_templates_server and template_path
     ), "Cannot specify both templates server and path"
 
-    if shutil.which("kalign") is None and (use_templates_server or template_hits_path):
+    if shutil.which("kalign") is None and (use_templates_server or template_path):
         logger.warning(
             "kalign not found, skipping template search kalign is required. \
 Please install kalign to use templates with Chai-1."
@@ -159,28 +218,35 @@ Please install kalign to use templates with Chai-1."
     else:
         if use_templates_server:
             cmd += ["--use-templates-server"]
-        if template_hits_path:
-            cmd += ["--template-hits-path", str(template_hits_path)]
+        if template_path:
+            cmd += ["--template-hits-path", str(template_path)]
 
     cmd += [str(output_dir)]
 
     return cmd
 
 
-def generate_chai_test_command() -> list:
-    """
-    Generate the Chai-1 test command
-
-    Args:
-        None
-
-    Returns:
-        list: The Chai-1 test command
-    """
+def generate_chai_test_command(
+    sif_path: Path | str | None = None,
+) -> list:
     chai_exe = Path(__file__).parent / "chai.py"
+    if sif_path:
+        runtime = _resolve_container_runtime()
+        return [
+            runtime,
+            "exec",
+            "--nv",
+            "--bind",
+            f"{chai_exe.parent.resolve()}:/abcfold_chai",
+            str(Path(sif_path).resolve()),
+            "python",
+            "/abcfold_chai/chai.py",
+            "fold",
+            "--help",
+        ]
     return [
         "python",
-        chai_exe,
+        str(chai_exe),
         "fold",
         "--help",
     ]

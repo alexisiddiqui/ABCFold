@@ -99,12 +99,12 @@ def run(args, config, defaults, config_file):
     if args.boltz:
         from abcfold.boltz.check_install import check_boltz
 
-        check_boltz()
+        check_boltz(sif_path=args.boltz_sif_path)
 
     if args.chai1:
         from abcfold.chai1.check_install import check_chai1
 
-        check_chai1()
+        check_chai1(sif_path=args.chai_sif_path)
 
     with tempfile.TemporaryDirectory() as temp_dir_str:
         temp_dir = Path(temp_dir_str)
@@ -179,6 +179,7 @@ def run(args, config, defaults, config_file):
                 save_input=args.save_input,
                 number_of_models=args.number_of_models,
                 num_recycles=args.num_recycles,
+                sif_path=args.boltz_sif_path,
             )
 
             if boltz_success:
@@ -203,6 +204,7 @@ def run(args, config, defaults, config_file):
                 number_of_models=args.number_of_models,
                 num_recycles=args.num_recycles,
                 template_hits_path=template_hits_path,
+                sif_path=args.chai_sif_path,
             )
 
             if chai_success:
