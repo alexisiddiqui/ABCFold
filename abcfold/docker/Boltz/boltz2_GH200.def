@@ -17,16 +17,16 @@ From: nvidia/cuda:12.6.3-devel-ubuntu24.04
     python3 -m venv /boltz_venv
     /boltz_venv/bin/pip3 install --no-cache-dir --upgrade pip setuptools wheel
 
-    # Install PyTorch for ARM with CUDA 12
-    /boltz_venv/bin/pip3 install --no-cache-dir \
-        torch==2.4.0 \
-        --index-url https://download.pytorch.org/whl/cu124
-
-    # Install Boltz and dependencies
+    # Install Boltz and dependencies (this will install torch 2.9.0)
     /boltz_venv/bin/pip3 install --no-cache-dir \
         boltz==2.0.3 \
         cuequivariance_torch \
         cuequivariance_ops_torch-cu12
+
+    # REMOVED: torchvision/torchaudio installation that downgrades torch
+    # If you need these packages, install versions compatible with torch>=2.6.0
+    # or install them from PyPI instead of the cu124 index:
+    # /boltz_venv/bin/pip3 install --no-cache-dir torchvision torchaudio
 
     # Cleanup
     apt-get clean && rm -rf /var/lib/apt/lists/*

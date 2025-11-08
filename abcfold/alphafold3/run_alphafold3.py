@@ -106,6 +106,7 @@ def generate_af3_cmd(
         --bind {database_dir}:/root/public_databases \
         {sif_path} \
         python /app/alphafold/run_alphafold.py \
+        --flash_attention_implementation="cudnn" \
         --json_path=/root/af_input/{input_json.name} \
         --model_dir=/root/models \
         --output_dir=/root/af_output \

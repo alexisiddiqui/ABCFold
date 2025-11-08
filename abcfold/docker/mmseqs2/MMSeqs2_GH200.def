@@ -1,0 +1,189 @@
+Bootstrap: docker
+From: arm64v8/ubuntu:22.04
+
+%labels
+    Author Alexander G. Hasson
+    Organization University of Oxford
+    Version 1.0
+    Description MMseqs2 optimized for NVIDIA GH200 (ARM64)
+
+%help
+    This container includes:
+    - MMseqs2 (compiled for ARM64 with GH200 optimizations)
+    - Optimized for NVIDIA GH200 (Grace Hopper) architecture
+
+    Usage:
+        singularity exec mmseqs2_gh200.sif mmseqs version
+        singularity exec mmseqs2_gh200.sif mmseqs search --help
+
+    For batch processing:
+        Use the run_mmseqs2_af3_pipeline.sh script which:
+        1. Runs MMseqs2 via this container
+        2. Converts results to AF3 JSON via ABCFold conda environment
+
+%environment
+    # Set locale
+    export LC_ALL=C
+    export LANG=C.UTF-8
+
+    # MMseqs2 settings
+    export MMSEQS_NUM_THREADS=72
+    export MMSEQS_CALL_DEPTH=1
+
+    # Optimize for ARM64/GH200
+    export OMP_NUM_THREADS=72
+    export OMP_PROC_BIND=close
+    export OMP_PLACES=cores
+
+    # Add binaries to PATH
+    export PATH=/opt/mmseqs/bin:$PATH
+    export LD_LIBRARY_PATH=/opt/mmseqs/lib:$LD_LIBRARY_PATH
+
+%post
+    # Set noninteractive mode for apt
+    export DEBIAN_FRONTEND=noninteractive
+    export TZ=Europe/London
+
+    echo "=========================================="
+    echo "Installing system dependencies"
+    echo "=========================================="
+
+    # Update and install base dependencies
+    apt-get update
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        git \
+        wget \
+        curl \
+        ca-certificates \
+        libgomp1 \
+        libomp-dev \
+        zlib1g-dev \
+        libbz2-dev \
+        libgfortran5 \
+        gfortran \
+        pkg-config \
+        vim \
+        less
+
+    echo "=========================================="
+    echo "Compiling MMseqs2 from source (GH200 optimized)"
+    echo "=========================================="
+
+    # Clone MMseqs2 repository
+    cd /tmp
+    git clone https://github.com/soedinglab/MMseqs2.git
+    cd MMseqs2
+
+    # Checkout stable version
+    git checkout 15-6f452
+
+    # Create build directory
+    mkdir build
+    cd build
+
+    # Configure with ARM64/GH200 optimizations
+    # - HAVE_ARM8: Enable ARM64 NEON SIMD instructions
+    # - NATIVE_ARCH: Optimize for the build machine's architecture
+    # - No MPI (not needed for local runs)
+    # - Disable x86-specific optimizations
+    cmake -DCMAKE_BUILD_TYPE=Release \
+          -DCMAKE_INSTALL_PREFIX=/opt/mmseqs \
+          -DHAVE_ARM8=1 \
+          -DNATIVE_ARCH=ON \
+          -DHAVE_MPI=0 \
+          -DHAVE_SSE4_1=0 \
+          -DHAVE_AVX2=0 \
+          -DVERSION_OVERRIDE=15.6f452 \
+          -DCMAKE_C_FLAGS="-O3 -march=armv8.2-a+sve" \
+          -DCMAKE_CXX_FLAGS="-O3 -march=armv8.2-a+sve" \
+          ..
+
+    # Compile using all available cores
+    make -j$(nproc)
+
+    # Install
+    make install
+
+    # Verify installation
+    /opt/mmseqs/bin/mmseqs version
+
+    echo "=========================================="
+    echo "Installing utilities"
+    echo "=========================================="
+
+    # Install useful command-line tools
+    apt-get install -y --no-install-recommends \
+        parallel \
+        pigz \
+        gzip \
+        tar \
+        rsync
+
+    echo "=========================================="
+    echo "Cleaning up"
+    echo "=========================================="
+
+    # Clean up build files
+    cd /
+    rm -rf /tmp/MMseqs2
+
+    # Clean apt cache
+    apt-get clean
+    apt-get autoremove -y
+    rm -rf /var/lib/apt/lists/*
+
+    echo "=========================================="
+    echo "Container build complete!"
+    echo "=========================================="
+
+    # Print version
+    echo "MMseqs2 version:"
+    /opt/mmseqs/bin/mmseqs version
+
+%runscript
+    echo "MMseqs2 Container for ARM64/GH200"
+    echo "MMseqs2 version: $(/opt/mmseqs/bin/mmseqs version 2>&1 | head -1)"
+    echo ""
+    echo "Usage: singularity exec mmseqs2_gh200.sif mmseqs <command>"
+    echo ""
+    exec "$@"
+
+%test
+    echo "=========================================="
+    echo "Running container tests"
+    echo "=========================================="
+
+    # Test MMseqs2
+    echo "Testing MMseqs2..."
+    mmseqs version
+    if [ $? -eq 0 ]; then
+        echo "✓ MMseqs2 version check passed"
+    else
+        echo "✗ MMseqs2 version check failed"
+        exit 1
+    fi
+
+    # Test MMseqs2 functionality
+    echo "Testing MMseqs2 createdb..."
+    echo -e ">test\nMKFLKFSLLTAVLLSVVFAFSSCGDDDDTYPYDVPDYAAAA" > /tmp/test.fasta
+    mmseqs createdb /tmp/test.fasta /tmp/testdb
+    if [ $? -eq 0 ]; then
+        echo "✓ MMseqs2 createdb test passed"
+        rm -f /tmp/test.fasta /tmp/testdb*
+    else
+        echo "✗ MMseqs2 createdb test failed"
+        exit 1
+    fi
+
+    # Test parallel processing
+    echo "Testing OpenMP support..."
+    export OMP_NUM_THREADS=4
+    if mmseqs version 2>&1 | grep -q "SIMD"; then
+        echo "✓ SIMD support detected"
+    fi
+
+    echo "=========================================="
+    echo "All tests passed!"
+    echo "=========================================="

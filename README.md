@@ -374,4 +374,20 @@ abcfold input.json output_dir -abc --no_visuals
 abcfold /home/alexi/Documents/AF3-Pipeline/test_jsons/VAC063_R5.001_data.json   ./output_VAC063_R5.001   -abc  --sif_path /home/alexi/Documents/AF3_weights/alphafold3.sif  --model_params /home/alexi/Documents/AF3_weights --override  --no_visuals --boltz_sif_path /home/alexi/Documents/ABCFold/abcfold/docker/Boltz/boltz2_ampere.sif --chai_sif_path /home/alexi/Documents/ABCFold/abcfold/docker/Chai/chai2_ampere.sif
 
 
-abcfold /home/alexi/Documents/AF3-Pipeline/test_jsons/VAC063_R5.001_data.json   ./output_VAC063_R5.001   -b  --sif_path /home/alexi/Documents/AF3_weights/alphafold3.sif  --model_params /home/alexi/Documents/AF3_weights --override  --no_visuals --boltz_sif_path /home/alexi/Documents/ABCFold/abcfold/docker/Boltz/boltz2_ampere.sif --chai_sif_path /home/alexi/Documents/ABCFold/abcfold/docker/Chai/chai2_ampere.sif
+abcfold /home/alexi/Documents/AF3-Pipeline/test_jsons/VAC063_R5.001_data.json   ./output_VAC063_R5.001   -b  --sif_path /home/alexi/Documents/AF3_weights/alphafold3.sif  --model_params /home/alexi/Documents/AF3_weights --override  --no_visuals --boltz_sif_path /lus/lfs1aip2/projects/s5h/hussian-simulation-hdx/projects/ABCFold/abcfold/docker/Boltz/boltz2_GH200.sif --chai_sif_path /lus/lfs1aip2/projects/s5h/hussian-simulation-hdx/projects/test_containers/chai_gh200.sif
+
+
+
+abcfold /lus/lfs1aip2/projects/s5h/hussian-simulation-hdx/projects/AF3_Prediction/AF3-Pipeline/examples/ATLAS/_msa_jsons/1a62A/1a62A_data.json  ./output_VAC063_R5.001   -abc  --sif_path /lus/lfs1aip2/projects/s5h/public/hussain/alphafold3/docker/alphafold3_arm64.sif --model_params /lus/lfs1aip2/projects/s5h/hussian-simulation-hdx/projects/ATLAS_MSA/AF3_weights --override  --no_visuals --boltz_sif_path /home/alexi/Documents/ABCFold/abcfold/docker/Boltz/boltz2_gh200.sif --chai_sif_path /home/alexi/Documents/ABCFold/abcfold/docker/Chai/chai2_gh200.sif
+
+
+abcfold /lus/lfs1aip2/projects/s5h/hussian-simulation-hdx/projects/AF3_Prediction/AF3-Pipeline/examples/ATLAS/_msa_jsons/1a62A/1a62A_data.json  ./output_VAC063_R5.001   -a  --sif_path /lus/lfs1aip2/projects/s5h/public/hussain/alphafold3/docker/alphafold3_arm64.sif --model_params /lus/lfs1aip2/projects/s5h/hussian-simulation-hdx/projects/ATLAS_MSA/AF3_weights --override  --no_visuals
+
+
+
+abcfold /lus/lfs1aip2/projects/s5h/hussian-simulation-hdx/projects/AF3_Prediction/AF3-Pipeline/examples/ATLAS/_msa_jsons/1a62A/1a62A_data.json  ./output_VAC063_R5.001   -abc  --sif_path /lus/lfs1aip2/projects/s5h/public/hussain/alphafold3/docker/alphafold3_arm64.sif --model_params /lus/lfs1aip2/projects/s5h/hussian-simulation-hdx/projects/ATLAS_MSA/AF3_weights --override  --no_visuals --boltz_sif_path /lus/lfs1aip2/projects/s5h/hussian-simulation-hdx/projects/ABCFold/abcfold/docker/Boltz/boltz2_GH200.sif  --chai_sif_path /lus/lfs1aip2/projects/s5h/hussian-simulation-hdx/projects/ABCFold/abcfold/docker/Chai/chai2_GH200.sif --mmseqs
+
+
+
+
+abcfold /lus/lfs1aip2/projects/s5h/hussian-simulation-hdx/projects/AF3_Prediction/AF3-Pipeline/examples/ATLAS/_msa_jsons/1a62A/1a62A_data.json  ./output_VAC063_R5.001   -c  --sif_path /lus/lfs1aip2/projects/s5h/public/hussain/alphafold3/docker/alphafold3_arm64.sif --model_params /lus/lfs1aip2/projects/s5h/hussian-simulation-hdx/projects/ATLAS_MSA/AF3_weights --override  --no_visuals --boltz_sif_path /lus/lfs1aip2/projects/s5h/hussian-simulation-hdx/projects/ABCFold/abcfold/docker/Boltz/boltz2_GH200.sif  --chai_sif_path /lus/lfs1aip2/projects/s5h/hussian-simulation-hdx/projects/ABCFold/abcfold/docker/Chai/chai2_GH200.sif --mmseqs

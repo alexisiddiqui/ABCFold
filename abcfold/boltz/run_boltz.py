@@ -6,6 +6,8 @@ import tempfile
 from pathlib import Path
 from typing import Union
 
+import yaml
+
 from abcfold.boltz.af3_to_boltz import BoltzYaml
 from abcfold.boltz.check_install import check_boltz
 
@@ -43,11 +45,18 @@ def run_boltz(
     input_json = Path(input_json)
     output_dir = Path(output_dir)
 
+    # Ensure output directory exists
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     logger.debug("Checking if boltz is installed")
     check_boltz(sif_path=sif_path)
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        working_dir = Path(temp_dir)
+    # Create temp directory inside output_dir for container accessibility
+    temp_dir = output_dir / "boltz_temp"
+    temp_dir.mkdir(exist_ok=True)
+
+    try:
+        working_dir = temp_dir
         if save_input:
             logger.info("Saving input yaml file and msa to the output directory")
             working_dir = output_dir
@@ -59,6 +68,11 @@ def run_boltz(
             out_file = working_dir.joinpath(f"{input_json.stem}_seed-{seed}.yaml")
 
             boltz_yaml.write_yaml(out_file)
+
+            # If using container, rewrite paths in YAML for container mounts
+            if sif_path:
+                _rewrite_yaml_paths_for_container(out_file, output_dir)
+
             logger.info("Running Boltz using seed: %s", seed)
             cmd = (
                 generate_boltz_command(
@@ -104,6 +118,62 @@ def run_boltz(
         logger.info("Boltz run complete")
         logger.info("Output files are in %s", output_dir)
         return True
+
+    finally:
+        # Clean up temp directory if not saving inputs
+        if not save_input and temp_dir.exists():
+            logger.debug("Cleaning up temporary directory: %s", temp_dir)
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def _rewrite_yaml_paths_for_container(yaml_file: Path, output_dir: Path) -> None:
+    """
+    Rewrite absolute paths in YAML file to use container mount points.
+
+    Args:
+        yaml_file: Path to the YAML file to rewrite
+        output_dir: The output directory that will be mounted as /output in container
+    """
+    output_dir = output_dir.resolve()
+
+    with open(yaml_file, 'r') as f:
+        data = yaml.safe_load(f)
+
+    def rewrite_path(path_str: str) -> str:
+        """Convert host absolute path to container mount path."""
+        if not path_str:
+            return path_str
+
+        path = Path(path_str).resolve()
+
+        # If the path is under output_dir, rewrite it to /output/...
+        try:
+            rel_path = path.relative_to(output_dir)
+            container_path = f"/output/{rel_path}"
+            logger.debug(f"Rewrote path: {path_str} -> {container_path}")
+            return container_path
+        except ValueError:
+            # Path is not relative to output_dir, leave it as is
+            logger.warning(f"Path {path_str} is not under output_dir, may not be accessible in container")
+            return path_str
+
+    # Recursively rewrite paths in the YAML data
+    def rewrite_recursive(obj):
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if key in ['msa', 'msa_file', 'path', 'file'] and isinstance(value, str):
+                    obj[key] = rewrite_path(value)
+                else:
+                    rewrite_recursive(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                rewrite_recursive(item)
+
+    rewrite_recursive(data)
+
+    # Write back the modified YAML
+    with open(yaml_file, 'w') as f:
+        yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
 
 
 def _resolve_container_runtime() -> str:

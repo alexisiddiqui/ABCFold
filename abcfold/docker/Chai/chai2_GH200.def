@@ -1,17 +1,17 @@
 Bootstrap: docker
 From: nvidia/cuda:12.6.3-devel-ubuntu24.04
+
 %post
     mkdir -p /host/nccl
 
-    # Install system packages including kalign for templates
+    # Install system packages
     DEBIAN_FRONTEND=noninteractive \
     apt-get update --quiet \
     && apt-get install --yes --quiet --allow-change-held-packages \
         python3.12 python3-pip python3.12-venv python3.12-dev \
         git wget gcc g++ make zlib1g-dev \
         libnccl2 libnccl-dev \
-        kalign \
-        numactl
+        kalign numactl
 
     # Create Python virtual environment
     python3 -m venv /chai_venv
@@ -22,7 +22,7 @@ From: nvidia/cuda:12.6.3-devel-ubuntu24.04
         torch==2.4.0 \
         --index-url https://download.pytorch.org/whl/cu124
 
-    # Install JAX 0.4.30 with CUDA 12 support (compatible with numpy 1.26)
+    # Install JAX 0.4.30 with CUDA 12 support
     /chai_venv/bin/pip3 install --no-cache-dir \
         jax[cuda12]==0.4.30 \
         -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
@@ -32,22 +32,56 @@ From: nvidia/cuda:12.6.3-devel-ubuntu24.04
         chai_lab==0.6.1 \
         antipickle typer jaxtyping beartype pandera matplotlib
 
-    mkdir -p /chai_venv/lib/python3.10/site-packages/downloads
-    cd /chai_venv/lib/python3.10/site-packages/downloads
+    # --- FIX: Get correct Python site-packages path ---
+    SITE_PACKAGES=$(/chai_venv/bin/python3 -c "import site; print(site.getsitepackages()[0])")
+    echo "Site packages path: ${SITE_PACKAGES}"
 
-    wget --tries=3 --timeout=30 \
-        https://chaiassets.com/chai1-inference-depencencies/conformers_v1.apkl \
-        https://chaiassets.com/chai1-inference-depencencies/leaving_atoms_v1.apkl \
-        || echo "Warning: Cache download failed, will download at runtime"
+    # Create downloads directory in correct location
+    mkdir -p "${SITE_PACKAGES}/downloads"
+    cd "${SITE_PACKAGES}/downloads"
 
-    # Download ESM model (large file ~3GB)
+    # Download conformer cache
+    echo "Downloading conformers cache..."
     wget --tries=3 --timeout=60 --continue \
-        -P esm/ \
+        https://chaiassets.com/chai1-inference-depencencies/conformers_v1.apkl \
+        || echo "Warning: conformers download failed"
+
+    # NOTE: leaving_atoms_v1.apkl returns 404, skip it
+    # It will be generated at runtime if needed
+
+    # Download ESM model
+    echo "Downloading ESM model..."
+    mkdir -p "${SITE_PACKAGES}/downloads/esm"
+    wget --tries=3 --timeout=120 --continue \
+        -P "${SITE_PACKAGES}/downloads/esm" \
         https://chaiassets.com/chai1-inference-depencencies/esm2/traced_sdpa_esm2_t36_3B_UR50D_fp16.pt \
-        || echo "Warning: ESM model download failed, will download at runtime"
+        || echo "Warning: ESM model download failed"
+
+    # Download Chai-1 model components
+    echo "Downloading Chai-1 model components..."
+    mkdir -p "${SITE_PACKAGES}/downloads/models_v2"
+    cd "${SITE_PACKAGES}/downloads/models_v2"
+
+    for component in feature_embedding.pt bond_loss_input_proj.pt \
+                     token_embedder.pt trunk.pt \
+                     diffusion_module.pt confidence_head.pt; do
+        echo "Downloading ${component}..."
+        wget --tries=3 --timeout=120 --continue \
+            "https://chaiassets.com/chai1-inference-depencencies/models_v2/${component}" \
+            || echo "Warning: ${component} download failed"
+    done
+
+    # Set permissions to ensure files are readable
+    chmod -R 755 "${SITE_PACKAGES}/downloads"
+
+    # Verify downloads
+    echo "Verifying downloads..."
+    ls -lh "${SITE_PACKAGES}/downloads/"
+    ls -lh "${SITE_PACKAGES}/downloads/models_v2/"
 
     # Cleanup
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
 %environment
     export PATH="/chai_venv/bin:$PATH"
 
@@ -62,8 +96,10 @@ From: nvidia/cuda:12.6.3-devel-ubuntu24.04
     export NCCL_NVLS_ENABLE=1
     export NCCL_NET_GDR_LEVEL=5
     export CUDA_DEVICE_ORDER=PCI_BUS_ID
+
 %runscript
     exec /chai_venv/bin/python3 -m chai_lab.chai1 "$@"
+
 %labels
     Author Chai_Team
     Version 0.6.1_GH200
