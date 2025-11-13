@@ -60,20 +60,20 @@ def setup_logging(verbose: bool, log_file: pathlib.Path = None):
     """
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
-    
+
     # Remove any existing handlers
     for handler in logger.handlers[:]:
         logger.removeHandler(handler)
-    
+
     # Format for all messages
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    
+
     # Console handler: only ERROR level
     console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(logging.ERROR)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
-    
+
     # File handler: all messages (DEBUG if verbose, else INFO)
     if log_file:
         log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -105,14 +105,14 @@ def get_protein_name_from_tarball(tarball_path: pathlib.Path) -> str:
     """
     Extract a clean protein name from the tarball filename by splitting on
     known delimiters or date pattern.
-    
+
     Supported formats:
     - name_data_YYYYMMDD_HHMMSS_ms.tar.xz (splits on _data_)
     - name_af3_YYYYMMDD_HHMMSS_ms.tar.xz (splits on _af3_)
     - name_YYYYMMDD_HHMMSS_ms.tar.xz (splits on _YYYYMMDD pattern)
     """
     fname = tarball_path.name
-    
+
     # Try explicit delimiters first
     if "_data_" in fname:
         protein_name = fname.split("_data_")[0]
@@ -123,7 +123,7 @@ def get_protein_name_from_tarball(tarball_path: pathlib.Path) -> str:
         # Pattern: _[8 digits]_[6 digits]_[1-3 digits]
         date_pattern = r'_(\d{8})_(\d{6})_(\d{1,3})\.tar'
         match = re.search(date_pattern, fname)
-        
+
         if match:
             # Extract everything before the date pattern
             protein_name = fname[:match.start()]
@@ -217,7 +217,7 @@ def extract_unique_files(run_dir: pathlib.Path, output_dir: pathlib.Path, protei
     """
     Extract unique, important files from the run directory, like the input JSON
     and MSA depth plot, using a flexible search.
-    
+
     Raises:
         FileNotFoundError: If the main _data.json file cannot be found.
     """
@@ -227,14 +227,14 @@ def extract_unique_files(run_dir: pathlib.Path, output_dir: pathlib.Path, protei
 
     # --- Flexible JSON search with multiple strategies ---
     json_found = False
-    
+
     # Find all *_data.json files recursively
     all_data_files = list(run_dir.rglob("*_data.json"))
-    
+
     if all_data_files:
         # Strategy 1: Find exact match with protein name (best match)
         matching_files = [f for f in all_data_files if protein_name in f.name]
-        
+
         if matching_files:
             # Prefer file with shortest path (closest to root), then by name
             src_json = min(matching_files, key=lambda p: (len(p.parts), p.name))
@@ -254,7 +254,7 @@ def extract_unique_files(run_dir: pathlib.Path, output_dir: pathlib.Path, protei
                     logging.info(f"  Copied {src_json.relative_to(run_dir)} to {dest_json} (using {model_prefix})")
                     json_found = True
                     break
-            
+
     if not json_found:
         # Provide debug info about what files were found
         all_json_files = list(run_dir.rglob("*.json"))
@@ -262,7 +262,7 @@ def extract_unique_files(run_dir: pathlib.Path, output_dir: pathlib.Path, protei
         if all_json_files:
             sample_files = [f.name for f in all_json_files[:3]]
             json_debug += f" (e.g., {', '.join(sample_files)})"
-        
+
         error_msg = (
             f"Could not find main input JSON file for {protein_name}. "
             f"Searched for *_data.json files matching protein name or in model directories (alphafold3, boltz, chai1). "
@@ -276,7 +276,7 @@ def extract_unique_files(run_dir: pathlib.Path, output_dir: pathlib.Path, protei
     if not pdf_files:
         # Try more flexible search
         pdf_files = list(run_dir.rglob("chai_output_seed-*/msa_depth.pdf"))
-    
+
     if pdf_files:
         src_pdf = pdf_files[0]  # Grab from the first match
         dest_pdf = protein_output_dir / f"{protein_name}_msa_depth.pdf"
@@ -307,13 +307,13 @@ def process_tarball(tarball: pathlib.Path, output_dir: pathlib.Path, args: argpa
                 if strip_val is None:
                     logging.info("`--strip-components` not provided, attempting to auto-detect.")
                     run_dir_name_from_tar = tarball.name.rsplit('.tar', 1)[0]
-                    
+
                     base_dir_path = None
                     for member in all_members:
                         if member.isdir() and member.name.strip('/').endswith(run_dir_name_from_tar):
                             base_dir_path = member.name.strip('/')
                             break
-                    
+
                     if base_dir_path:
                         strip_val = len(pathlib.Path(base_dir_path).parts) - 1
                         logging.info(f"  Auto-detected strip-components = {strip_val} (based on path '{base_dir_path}')")
@@ -372,7 +372,7 @@ def process_tarball(tarball: pathlib.Path, output_dir: pathlib.Path, args: argpa
 def process_tarball_wrapper(tarball_and_output: Tuple[pathlib.Path, pathlib.Path, argparse.Namespace]) -> Tuple[pathlib.Path, bool, str]:
     """
     Wrapper function to process a single tarball for use with ProcessPoolExecutor.
-    
+
     Returns a tuple of (tarball_path, success, message).
     """
     tarball, output_dir, args = tarball_and_output
@@ -454,10 +454,10 @@ def main():
 
     # Create the main output directory first
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Set up log file
     log_file = args.output_dir / "compression_run.log"
-    
+
     setup_logging(args.verbose, log_file)
 
     # Check if extractor scripts are found
@@ -485,11 +485,11 @@ def main():
     num_workers = args.workers
     if num_workers is None:
         num_workers = os.cpu_count() or 1
-    
+
     if num_workers < 1:
         logging.error("Number of workers must be at least 1.")
         sys.exit(1)
-    
+
     if num_workers == 1:
         logging.info("Processing tarballs sequentially (1 worker).")
         failed_tarballs = []
@@ -503,7 +503,7 @@ def main():
             except Exception as e:
                 logging.error(f"[{i}/{len(tarballs)}] Error processing {tarball.name}: {str(e)}")
                 failed_tarballs.append((tarball.name, str(e)))
-        
+
         if failed_tarballs:
             logging.warning(f"\n{'='*60}\nProcessing completed with {len(failed_tarballs)} failure(s):\n{'='*60}")
             for tarball_name, error in failed_tarballs:
@@ -511,24 +511,24 @@ def main():
             sys.exit(1)
     else:
         logging.info(f"Processing {len(tarballs)} tarballs in parallel with {num_workers} workers.")
-        
+
         # Create a list of tasks for the executor
         tasks = [(tarball, args.output_dir, args) for tarball in tarballs]
-        
+
         # Track failures
         failed_tarballs = []
-        
+
         # Process tarballs in parallel
         with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
             # Submit all tasks
             futures = {
-                executor.submit(process_tarball_wrapper, task): task[0] 
+                executor.submit(process_tarball_wrapper, task): task[0]
                 for task in tasks
             }
-            
+
             # Collect results as they complete with progress bar
             completed = 0
-            for future in tqdm(concurrent.futures.as_completed(futures), 
+            for future in tqdm(concurrent.futures.as_completed(futures),
                              total=len(tarballs),
                              desc="Processing tarballs",
                              unit="tarball"):
@@ -546,7 +546,7 @@ def main():
                     completed += 1
                     logging.error(f"[{completed}/{len(tarballs)}] Unexpected error: {str(e)}")
                     failed_tarballs.append((futures[future].name, str(e)))
-        
+
         if failed_tarballs:
             logging.warning(f"\n{'='*60}\nProcessing completed with {len(failed_tarballs)} failure(s):\n{'='*60}")
             for tarball_name, error in failed_tarballs:
@@ -555,7 +555,7 @@ def main():
 
     logging.info(f"\n{'='*60}\nAll processing complete.\n{'='*60}")
     logging.info(f"Check the output directory: {args.output_dir}")
-    
+
     # Print log file location to console since we only show errors there
     print(f"\n✓ Processing complete. Full log available at: {log_file}", file=sys.stderr)
 
