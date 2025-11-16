@@ -50,6 +50,70 @@ class BoltzYaml:
         with open(file_path, "w") as f:
             f.write(msa)
 
+    def create_boltz_msa_csv(self, sequence_dict: dict, csv_path: Union[str, Path]):
+        """
+        Parses paired and unpaired MSAs from the AF3-style dict and writes
+        them to a Boltz-compatible CSV file.
+
+        Args:
+            sequence_dict (dict): The dictionary for a single protein sequence,
+                                  e.g., seq["protein"].
+            csv_path (Union[str, Path]): The path to write the output .csv file.
+        """
+        paired_msa_str = sequence_dict.get("pairedMsa", "")
+        unpaired_msa_str = sequence_dict.get("unpairedMsa", "")
+
+        csv_lines = ["key,sequence"]
+        all_sequences = set()
+        query_sequence = None
+
+        # Process Paired MSA
+        if paired_msa_str:
+            current_key = "-1"
+            for line in paired_msa_str.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+
+                if line.startswith(">"):
+                    # Paired MSA key is the first word after '>'
+                    current_key = line.split()[0][1:]
+                else:
+                    # This is a sequence line
+                    sequence = line
+                    if not sequence:
+                        continue
+
+                    if query_sequence is None:
+                        query_sequence = sequence
+
+                    csv_lines.append(f'"{current_key}",{sequence}')
+                    all_sequences.add(sequence)
+
+        # Process Unpaired MSA
+        if unpaired_msa_str:
+            for line in unpaired_msa_str.splitlines():
+                line = line.strip()
+                if not line or line.startswith(">"):
+                    continue
+
+                # This is a sequence line
+                sequence = line
+                if not sequence:
+                    continue
+
+                if query_sequence is None:
+                    query_sequence = sequence
+
+                # Add only if it's not the query and not already in paired set
+                if sequence != query_sequence and sequence not in all_sequences:
+                    csv_lines.append(f'"-1",{sequence}')
+                    all_sequences.add(sequence)
+
+        # Write the CSV file
+        with open(csv_path, "w") as f:
+            f.write("\n".join(csv_lines))
+
     def json_to_yaml(
         self,
         json_file_or_dict: Union[dict, str, Path],
@@ -322,7 +386,8 @@ class BoltzYaml:
 
         if self.msa_file is not None:
             (
-                self.msa_to_file(sequence_dict["unpairedMsa"], self.msa_file)
+                # Call new CSV creation method
+                self.create_boltz_msa_csv(sequence_dict, self.msa_file)
                 if self.__create_files
                 else None
             )
@@ -358,12 +423,15 @@ class BoltzYaml:
         """
         for sequence_type, sequence_info_dict in sequence_dict.items():
             yaml_string += self.add_title(sequence_type)
+            # Check for either paired or unpaired MSAs
+            has_msa = "unpairedMsa" in sequence_info_dict or "pairedMsa" in sequence_info_dict
+
             self.msa_file = (
                 (
                     Path(self.working_dir)
-                    / f"{''.join(random.choices(string.ascii_letters, k=5))}.a3m"
+                    / f"{''.join(random.choices(string.ascii_letters, k=5))}.csv"
                 )
-                if "unpairedMsa" in sequence_info_dict
+                if has_msa
                 else None
             )
 
